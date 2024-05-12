@@ -11,7 +11,7 @@ services:
         max-size: "10m"
         max-file: "10"
     volumes:
-      - pg_data_o_s:/var/lib/postgresql/data
+      - pg_data_django_test_app:/var/lib/postgresql/data
     ports:
       - "5434:${POSTGRES_PORT}"
     env_file:
@@ -123,8 +123,8 @@ services:
       - mynetwork
 
 volumes:
-  pg_data_o_s:
-    name: pg_data_o_s
+  pg_data_django_test_app:
+    name: pg_data_django_test_app
   static_volume:
     name: static_volume
   media_volume:
