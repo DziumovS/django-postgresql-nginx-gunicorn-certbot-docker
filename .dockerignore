@@ -1,0 +1,15 @@
+README.md
+LICENSE
+.gitignore
+.dockerignore
+.git
+.idea
+.pytest_cache
+docker-compose.yml
+docker
+venv
+
+*/.pytest_cache
+*/__pycache__
+*/pytest.ini
+*/tests

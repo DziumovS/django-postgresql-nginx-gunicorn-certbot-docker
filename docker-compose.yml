@@ -1,0 +1,143 @@
+services:
+  postgres:
+    container_name: postgres_db
+    build:
+      context: ./docker/db
+      dockerfile: Dockerfile
+    image: postgres:django_test_app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+    volumes:
+      - pg_data_o_s:/var/lib/postgresql/data
+    ports:
+      - "5434:${POSTGRES_PORT}"
+    env_file:
+      - .env
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 4G
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=256MB"]
+    networks:
+      - mynetwork
+
+  memcached:
+    container_name: memcached
+    build: ./docker/cache
+    image: memcached:django_test_app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+    ports:
+      - "11211:11211"
+    restart: unless-stopped
+    command: ["-m", "2048"]
+    networks:
+      - mynetwork
+
+  application:
+    container_name: website
+    build:
+      context: .
+      dockerfile: ./docker/app/Dockerfile
+    image: website:django_test_app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+    volumes:
+      - static_volume:/app/test_app/static
+      - media_volume:/app/test_app/media
+      - /home/backups:/app/backups
+    expose:
+      - ${APP_PORT}
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - memcached
+    restart: unless-stopped
+    networks:
+      - mynetwork
+
+  proxy:
+    container_name: nginx
+    build:
+      context: ./docker/proxy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+    volumes:
+      - static_volume:/app/test_app/static
+      - media_volume:/app/test_app/media
+      - certbot-web:/vol/www
+      - proxy-dhparams:/vol/proxy
+      - certbot-certs:/etc/letsencrypt
+      - nginx_config:/etc/nginx/
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    restart: always
+    depends_on:
+      - application
+    networks:
+      - mynetwork
+
+  certbot:
+    container_name: certbot
+    build:
+      context: ./docker/certbot
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+    volumes:
+      - certbot-web:/vol/www
+      - certbot-certs:/etc/letsencrypt
+    environment:
+      - EMAIL=${EMAIL}
+      - DOMAIN=${DOMAIN}
+    command: echo "Skipping..."
+    depends_on:
+      - proxy
+    networks:
+      - mynetwork
+
+volumes:
+  pg_data_o_s:
+    name: pg_data_o_s
+  static_volume:
+    name: static_volume
+  media_volume:
+    name: media_volume
+  certbot-web:
+    name: certbot-web
+  proxy-dhparams:
+    name: proxy-dhparams
+  certbot-certs:
+    name: certbot-certs
+  nginx_config:
+    name: nginx-config
+
+networks:
+  mynetwork:
+    driver: bridge
